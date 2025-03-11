@@ -1,0 +1,94 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Function to calculate power and RPM for a given thrust and blade count
+def thrust_to_power_with_blades(thrust_lbf, propeller_diameter_in, num_blades=2, thrust_coefficient=0.1,
+                                air_density=1.225, motor_efficiency=0.9, esc_efficiency=0.95):
+    """
+    Convert required thrust in pounds-force (lbf) to required electric power (Watts),
+    while considering the number of blades.
+
+    :param thrust_lbf: Required thrust in pounds-force (lbf).
+    :param propeller_diameter_in: Propeller diameter in inches.
+    :param num_blades: Number of propeller blades (default 2).
+    :param thrust_coefficient: Base thrust coefficient (default 0.1).
+    :param air_density: Air density in kg/m³ (default 1.225 kg/m³).
+    :param motor_efficiency: Motor efficiency (default 90%).
+    :param esc_efficiency: ESC efficiency (default 95%).
+    :return: Tuple (Required RPM, Required Electric Power in Watts, Adjusted Thrust Coefficient).
+    """
+    # Convert thrust to Newtons
+    thrust_N = thrust_lbf / 0.224809  
+
+    # Convert propeller diameter to meters
+    propeller_diameter_m = propeller_diameter_in * 0.0254  
+
+    # Adjust thrust coefficient based on blade count
+    adjusted_C_T = thrust_coefficient * (1 + 0.15 * (num_blades - 2))
+
+    # Calculate required RPS (n)
+    rps = np.sqrt(thrust_N / (adjusted_C_T * air_density * (propeller_diameter_m ** 4)))
+    rpm = rps * 60  # Convert to RPM
+
+    # Calculate torque assuming mechanical power is evenly distributed
+    omega = (2 * np.pi * rpm) / 60  # Angular velocity in rad/s
+    torque = thrust_N * propeller_diameter_m / 2  # Approximate torque
+
+    # Compute required power
+    prop_power = torque * omega  # Mechanical power in Watts
+    total_efficiency = motor_efficiency * esc_efficiency
+
+    if total_efficiency == 0:
+        raise ValueError("Efficiency cannot be zero.")
+
+    elec_power = prop_power / total_efficiency  # Convert to required electric power
+
+    return rpm, elec_power, adjusted_C_T
+
+# Define parameters
+thrust_input_lbf = 400  # Target thrust in pounds-force
+prop_diameter_in = 70   # Propeller diameter in inches
+blade_counts = [2, 3, 4, 5, 6]  # Common blade configurations
+
+# Storage for results
+results = []
+
+# Compute Power and RPM for each blade count
+for num_blades in blade_counts:
+    required_rpm, required_power_watts, adjusted_CT = thrust_to_power_with_blades(
+        thrust_input_lbf, prop_diameter_in, num_blades
+    )
+
+    # Store results in DataFrame
+    results.append({
+        "Number of Blades": num_blades,
+        "Required RPM": required_rpm,
+        "Electric Power Required (kW)": required_power_watts * 0.00134102 * 0.7457,  # Convert W to kW
+        "Adjusted Thrust Coefficient": adjusted_CT
+    })
+
+# Convert results to DataFrame
+blade_data = pd.DataFrame(results)
+
+# Plot Electric Power vs. Number of Blades in kW
+plt.figure(figsize=(8, 5))
+plt.plot(blade_data["Number of Blades"], blade_data["Electric Power Required (kW)"], marker='o', linestyle='-', label="Power Required (kW)")
+
+plt.xlabel("Number of Blades")
+plt.ylabel("Electric Power Required (kW)")
+plt.title("Electric Power Required vs. Number of Blades (kW)")
+plt.grid(True)
+plt.legend()
+plt.show()
+
+# Plot RPM vs. Number of Blades
+plt.figure(figsize=(8, 5))
+plt.plot(blade_data["Number of Blades"], blade_data["Required RPM"], marker='s', linestyle='-', color='r', label="Required RPM")
+
+plt.xlabel("Number of Blades")
+plt.ylabel("Required RPM")
+plt.title("Required RPM vs. Number of Blades")
+plt.grid(True)
+plt.legend()
+plt.show()

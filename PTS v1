@@ -1,0 +1,110 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Define input ranges for parameters
+prop_diameters = np.linspace(1.0, 3.0, 10)  # Propeller diameter (m)
+prop_pitches = np.linspace(0.5, 2.0, 10)    # Propeller pitch (m)
+motor_powers = np.linspace(10, 100, 10)     # Motor power (kW)
+battery_energies = np.linspace(10, 200, 10) # Battery energy (kWh)
+num_blades = np.array([2, 3, 4, 5, 6])      # Number of propeller blades
+fan_ducts = np.array([0, 1])                # 0 = No Duct, 1 = Ducted
+num_fans = np.array([1, 2, 4, 6, 8])        # Number of fans per aircraft
+
+# Fixed parameters
+prop_efficiency = 0.85  # Propeller efficiency
+motor_efficiency = 0.92 # Motor efficiency
+battery_efficiency = 0.95 # Battery efficiency
+air_density = 1.225 # kg/m³
+vehicle_weight = 1500  # Aircraft weight (kg)
+vehicle_drag = 500  # Aircraft drag force (N)
+
+# Generate performance trade-off calculations
+optimal_designs = []
+
+for D in prop_diameters:
+    for P in prop_pitches:
+        for P_motor in motor_powers:
+            for E_batt in battery_energies:
+                for B in num_blades:
+                    for duct in fan_ducts:
+                        for fans in num_fans:
+                            
+                            # Adjust efficiency based on number of blades and duct presence
+                            blade_efficiency_factor = 1 - (B - 2) * 0.02  # Approximate loss per extra blade
+                            duct_efficiency_factor = 1.1 if duct == 1 else 1.0  # Increase efficiency if ducted
+                            
+                            adjusted_prop_efficiency = prop_efficiency * blade_efficiency_factor * duct_efficiency_factor
+                            
+                            # Calculate thrust per fan
+                            T_per_fan = (P_motor * 1000 * adjusted_prop_efficiency) / (D * P * air_density)
+                            
+                            # Total thrust available
+                            T_total = T_per_fan * fans
+                            
+                            # Total system efficiency
+                            total_efficiency = adjusted_prop_efficiency * motor_efficiency * battery_efficiency
+                            
+                            # Endurance estimation (Assuming constant power draw)
+                            endurance = (E_batt * battery_efficiency) / (P_motor * fans)  # hours
+                            
+                            # Check if thrust can overcome weight and drag
+                            if T_total >= (vehicle_weight * 9.81 + vehicle_drag):
+                                feasible = 1  # Feasible design
+                            else:
+                                feasible = 0  # Not feasible
+                            
+                            # Store results
+                            optimal_designs.append([D, P, P_motor, E_batt, B, duct, fans, T_total, total_efficiency, endurance, feasible])
+
+# Convert results to a NumPy array for plotting
+optimal_designs = np.array(optimal_designs)
+
+# Plot Thrust vs. Motor Power
+plt.figure()
+plt.scatter(optimal_designs[:, 2], optimal_designs[:, 7], c=optimal_designs[:, 9], cmap='viridis', alpha=0.7)
+plt.colorbar(label='Endurance (hrs)')
+plt.xlabel('Motor Power (kW)')
+plt.ylabel('Total Thrust (N)')
+plt.title('Thrust vs. Motor Power (Color: Endurance)')
+plt.grid()
+plt.show()
+
+# Plot Endurance vs. Battery Energy
+plt.figure()
+plt.scatter(optimal_designs[:, 3], optimal_designs[:, 9], c=optimal_designs[:, 7], cmap='plasma', alpha=0.7)
+plt.colorbar(label='Total Thrust (N)')
+plt.xlabel('Battery Energy (kWh)')
+plt.ylabel('Endurance (hrs)')
+plt.title('Endurance vs. Battery Energy (Color: Thrust)')
+plt.grid()
+plt.show()
+
+# Plot Efficiency vs. Propeller Diameter
+plt.figure()
+plt.scatter(optimal_designs[:, 0], optimal_designs[:, 8], c=optimal_designs[:, 1], cmap='coolwarm', alpha=0.7)
+plt.colorbar(label='Propeller Pitch (m)')
+plt.xlabel('Propeller Diameter (m)')
+plt.ylabel('Total Efficiency')
+plt.title('Efficiency vs. Propeller Diameter (Color: Propeller Pitch)')
+plt.grid()
+plt.show()
+
+# Plot Thrust vs. Number of Blades
+plt.figure()
+plt.scatter(optimal_designs[:, 4], optimal_designs[:, 7], c=optimal_designs[:, 5], cmap='cividis', alpha=0.7)
+plt.colorbar(label='Fan Duct (0 = No, 1 = Yes)')
+plt.xlabel('Number of Blades')
+plt.ylabel('Total Thrust (N)')
+plt.title('Thrust vs. Number of Blades (Color: Duct Presence)')
+plt.grid()
+plt.show()
+
+# Plot Feasibility of Designs
+plt.figure()
+plt.scatter(optimal_designs[:, 6], optimal_designs[:, 7], c=optimal_designs[:, 10], cmap='coolwarm', alpha=0.7)
+plt.colorbar(label='Feasibility (1 = Yes, 0 = No)')
+plt.xlabel('Number of Fans')
+plt.ylabel('Total Thrust (N)')
+plt.title('Feasibility of Designs (Color: Feasible or Not)')
+plt.grid()
+plt.show()

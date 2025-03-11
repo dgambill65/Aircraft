@@ -1,0 +1,72 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Function to compute power and RPM based on thrust and number of blades
+def thrust_to_power_with_blades(thrust_lbf, propeller_diameter_in, num_blades=2, thrust_coefficient=0.1,
+                                air_density=1.225, motor_efficiency=0.9, esc_efficiency=0.95):
+    """
+    Convert required thrust in pounds-force (lbf) to required electric power (kW),
+    while considering the number of blades.
+    """
+    thrust_N = thrust_lbf / 0.224809  
+    propeller_diameter_m = propeller_diameter_in * 0.0254  
+    adjusted_C_T = thrust_coefficient * (1 + 0.15 * (num_blades - 2))
+    rps = np.sqrt(thrust_N / (adjusted_C_T * air_density * (propeller_diameter_m ** 4)))
+    rpm = rps * 60  
+    omega = (2 * np.pi * rpm) / 60  
+    torque = thrust_N * propeller_diameter_m / 2  
+    prop_power = torque * omega  
+    total_efficiency = motor_efficiency * esc_efficiency
+    elec_power_watts = prop_power / total_efficiency  
+    elec_power_kW = elec_power_watts / 1000  
+    return rpm, elec_power_kW, adjusted_C_T
+
+# Function to estimate battery requirements
+def required_battery_capacity(power_kW, voltage, desired_runtime_hours=2):
+    power_W = power_kW * 1000  
+    required_current_A = power_W / voltage  
+    required_capacity_Ah = required_current_A * desired_runtime_hours  
+    return required_capacity_Ah
+
+# System parameters
+propeller_diameters = [50, 60, 70, 80, 90]
+blade_counts = [2, 3, 4, 5, 6]
+thrust_coefficients = [0.08, 0.10, 0.12, 0.14, 0.16]
+battery_energy_densities = [160, 315]
+num_fans = 4  
+total_required_thrust_lbf = 2200  
+thrust_per_fan_lbf = total_required_thrust_lbf / num_fans  
+battery_voltage = 400  
+desired_runtime_minutes = 10  
+desired_runtime_hours = desired_runtime_minutes / 60  
+counter_rotation_factor = 0.9  
+
+# Compute all combinations
+results = []
+for diameter in propeller_diameters:
+    for num_blades in blade_counts:
+        for thrust_coefficient in thrust_coefficients:
+            adjusted_thrust_per_fan_lbf = thrust_per_fan_lbf * counter_rotation_factor
+            required_rpm, required_power_kW, adjusted_CT = thrust_to_power_with_blades(
+                adjusted_thrust_per_fan_lbf, diameter, num_blades, thrust_coefficient
+            )
+            omega = (2 * np.pi * required_rpm) / 60  
+            torque = (adjusted_thrust_per_fan_lbf / 0.224809) * ((diameter * 0.0254) / 2)  
+            total_power_kW = required_power_kW * num_fans
+            for battery_density in battery_energy_densities:
+                required_capacity_Ah = required_battery_capacity(total_power_kW, battery_voltage, desired_runtime_hours)
+                battery_weight_kg = (required_capacity_Ah * battery_voltage) / battery_density  
+                results.append({
+                    "Propeller Diameter (inches)": diameter,
+                    "Blade Count": num_blades,
+                    "Thrust Coefficient": thrust_coefficient,
+                    "RPM": required_rpm,
+                    "Power (kW)": required_power_kW,
+                    "Torque (Nm)": torque,
+                    "Battery Weight (kg)": battery_weight_kg
+                })
+
+# Convert results to DataFrame
+df_results = pd.DataFrame(results)
+print(df_results)
